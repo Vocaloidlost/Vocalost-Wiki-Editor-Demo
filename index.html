@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocalost Wiki Editor</title>
+<style>
+  :root {
+    --bg: #0d0d12;
+    --surface: #16161f;
+    --surface2: #1e1e2a;
+    --border: #2a2a3a;
+    --accent: #a78bfa;
+    --accent-dim: #3d3460;
+    --text: #e2dff5;
+    --muted: #7a7494;
+    --success: #4ade80;
+    --error: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── TOP BAR ── */
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .topbar h1 { font-size: 13px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); }
+  .vocadb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .vocadb-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 16px; padding: 8px 12px; outline: none; transition: border-color .15s; }
+  .vocadb-row input:focus { border-color: var(--accent); }
+  .vocadb-row input::placeholder { color: var(--muted); }
+  .fetch-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: opacity .15s; }
+  .fetch-btn:hover { opacity: .85; }
+  .fetch-btn:disabled { opacity: .4; cursor: default; }
+  #fetchStatus { font-size: 12px; white-space: nowrap; }
+  #fetchStatus.ok { color: var(--success); }
+  #fetchStatus.err { color: var(--error); }
+  #fetchStatus.loading { color: var(--warn); }
+
+  /* ── LAYOUT ── */
+  .layout { display: flex; flex-direction: column; padding: 16px; max-width: 720px; margin: 0 auto; }
+
+  /* ── SECTION ── */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+  .section-hd { background: var(--surface2); padding: 9px 16px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--border); }
+  .section-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── FIELDS ── */
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 11px; color: var(--muted); letter-spacing: .05em; font-weight: 600; }
+  input[type=text], input[type=number], textarea {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: inherit; font-size: 16px;
+    padding: 8px 10px; outline: none; transition: border-color .15s; width: 100%;
+  }
+  input[type=text]:focus, input[type=number]:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .auto-badge { font-size: 10px; background: var(--accent-dim); color: var(--accent); padding: 1px 6px; border-radius: 4px; margin-left: 6px; font-weight: 700; letter-spacing: .05em; vertical-align: middle; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
+
+  /* ── CHIPS ── */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; user-select: none; }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+  .chips-compact { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .chips-compact .chip { padding: 6px 10px; font-size: 11px; flex-shrink: 0; }
+
+  /* ── BUTTONS ── */
+  .add-btn { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; align-self: flex-start; }
+  .add-btn:hover { background: var(--accent); color: #fff; }
+  .del-btn { background: transparent; border: 1px solid #f8717155; color: var(--error); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .del-btn:hover { background: #f8717122; }
+  .icon-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn.on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .icon-btn:disabled { opacity: .4; cursor: default; }
+
+  /* ── OUTPUT ── */
+  .out-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .out-label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); flex: 1; }
+  .copy-btn { display: flex; align-items: center; gap: 5px; background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .copy-btn:hover { background: var(--accent); color: #fff; }
+  .copy-btn.copied { background: #166534; border-color: var(--success); color: var(--success); }
+  .gen-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+  .gen-btn:hover { opacity: .85; }
+  #output { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 12px; line-height: 1.75; white-space: pre-wrap; word-break: break-all; min-height: 200px; color: #c5bff0; margin-top: 10px; }
+
+  /* ── PERSON ENTRIES ── */
+  .person-entry { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .person-entry input { flex: 1; margin: 0; }
+  .illust-entry { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 6px; }
+  .illust-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+  /* ── FIELD WITH INLINE BUTTON (copy/history) ── */
+  .field-with-btn { display: flex; gap: 6px; align-items: center; }
+  .field-with-btn input { flex: 1; margin: 0; }
+
+  /* ── UPLOAD ENTRIES ── */
+  .upload-block { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .upload-block-title { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .05em; }
+  .nico-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .nico-row input { flex: 1; margin: 0; }
+  .nico-url-display { font-size: 11px; color: var(--muted); word-break: break-all; padding: 4px 0; }
+
+  /* ── EXT LINK ENTRIES ── */
+  .ext-entry { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .ext-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── PARTIAL SEC ── */
+  .partial-sec { display: none; flex-direction: column; gap: 4px; }
+  .partial-sec.show { display: flex; }
+
+  /* ── THUMBNAIL FINDER (shared: nico + youtube) ── */
+  .thumb-id-row { display:flex; gap:8px; align-items:center; }
+  .thumb-id-label { font-size:13px; color:var(--accent); font-weight:700; font-family:monospace; flex:1; }
+  .thumb-card { background:var(--bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .thumb-card-meta { padding:6px 10px; font-size:11px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .thumb-card img { width:100%; height:auto; display:block; }
+  .thumb-tag { font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; }
+  .thumb-tag-wb   { background:#1e3a5f; color:#90caf9; }
+  .thumb-tag-live { background:#14532d; color:var(--success); }
+  .thumb-tag-yt   { background:#5f1e3a; color:#f9a8d4; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Vocalost Wiki Editor</h1>
+  <div class="vocadb-row">
+    <input type="text" id="vocadbUrl" placeholder="VocaDB URL または Song ID">
+    <button class="fetch-btn" onclick="fetchVocaDB()">取得</button>
+    <span id="fetchStatus"></span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- INFOBOX -->
+  <div class="section">
+    <div class="section-hd">Infobox Song</div>
+    <div class="section-body">
+
+      <div class="field">
+        <label>Video Title <span class="auto-badge">AUTO</span></label>
+        <input type="text" id="videotitle">
+      </div>
+
+      <div class="field">
+        <label>Song Title (日本語) <span class="auto-badge">AUTO</span></label>
+        <input type="text" id="songtitle" oninput="syncImageFile()">
+      </div>
+
+      <div class="field">
+        <label>Song Title (ローマ字)</label>
+        <input type="text" id="songtitle_roman">
+      </div>
+
+      <div class="field">
+        <label>Producer</label>
+        <div class="row2">
+          <div class="field">
+            <label>日本語名 <span class="auto-badge">AUTO</span></label>
+            <input type="text" id="producer_ja" list="producerJaHistoryList" onblur="saveHistoryEntry('producer_ja', this.value)">
+            <datalist id="producerJaHistoryList"></datalist>
+          </div>
+          <div class="field">
+            <label>ローマ字</label>
+            <input type="text" id="producer_roman" list="producerRomanHistoryList" onblur="saveHistoryEntry('producer_roman', this.value)">
+            <datalist id="producerRomanHistoryList"></datalist>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Illustrator <span class="auto-badge">AUTO</span></label>
+        <div id="illustrator-list"></div>
+        <button type="button" class="add-btn" onclick="addIllustratorEntry()" style="margin-top:4px">+ 追加</button>
+      </div>
+
+      <div class="field">
+        <label>Vocal <span class="auto-badge">AUTO (ローマ字)</span></label>
+        <div id="vocal-list"></div>
+        <button type="button" class="add-btn" onclick="addVocalEntry()" style="margin-top:4px">+ 追加</button>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label>Duration <span class="auto-badge">AUTO</span></label>
+          <input type="text" id="duration">
+        </div>
+        <div class="field">
+          <label>Date <span class="auto-badge">AUTO</span></label>
+          <input type="text" id="date">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Song Type</label>
+        <div class="chips chips-compact" id="songtype-chips">
+          <div class="chip active" data-val="Original" onclick="selectSongType(this)">Original</div>
+          <div class="chip"        data-val="Remaster" onclick="selectSongType(this)">Remaster</div>
+          <div class="chip"        data-val="Cover"    onclick="selectSongType(this)">Cover</div>
+          <div class="chip"        data-val="Album"    onclick="toggleAlbumChip(this)">Album</div>
+        </div>
+        <input type="hidden" id="songTypeVal" value="Original">
+        <input type="hidden" id="albumOnVal" value="0">
+
+        <div class="field" id="remaster-title-field" style="display:none;margin-top:8px;">
+          <label>Remaster元の曲名</label>
+          <div class="row2">
+            <div class="field">
+              <label>日本語</label>
+              <input type="text" id="remaster_original_title_ja">
+            </div>
+            <div class="field">
+              <label>ローマ字</label>
+              <input type="text" id="remaster_original_title_roman">
+            </div>
+          </div>
+        </div>
+
+        <div class="field" id="album-name-field" style="display:none;margin-top:8px;">
+          <label>Album名</label>
+          <div class="row2">
+            <div class="field">
+              <label>日本語</label>
+              <input type="text" id="album_name_ja">
+            </div>
+            <div class="field">
+              <label>ローマ字</label>
+              <input type="text" id="album_name_roman">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- INFO + DESCRIPTION (upload blocks, dynamic) -->
+  <div class="section">
+    <div class="section-hd">Info / Stats &amp; Description</div>
+    <div class="section-body" id="upload-data-body"></div>
+  </div>
+
+  <!-- LYRICS -->
+  <div class="section">
+    <div class="section-hd">Lyrics</div>
+    <div class="section-body" id="lyrics-body"></div>
+    <div style="padding:0 16px 16px;">
+      <button type="button" class="add-btn" onclick="addLyricsBlock()">+ 歌詞を追加</button>
+    </div>
+  </div>
+
+  <!-- VIDEO -->
+  <div class="section">
+    <div class="section-hd">Video</div>
+    <div class="section-body">
+      <div class="field">
+        <label>YouTube URL <span class="auto-badge">AUTO (転載)</span></label>
+        <input type="text" id="yt_url">
+      </div>
+      <div class="field">
+        <label>Tab Name</label>
+        <div class="chips" id="tabname-chips">
+          <div class="chip active" data-val="Reprint" onclick="selectChip(this,'tabname-chips','tabnameVal')">Reprint</div>
+          <div class="chip"        data-val="Clip"    onclick="selectChip(this,'tabname-chips','tabnameVal')">Clip</div>
+          <div class="chip"        data-val="Audio"   onclick="selectChip(this,'tabname-chips','tabnameVal')">Audio</div>
+        </div>
+        <input type="hidden" id="tabnameVal" value="Reprint">
+      </div>
+
+      <!-- YOUTUBE THUMBNAIL FINDER -->
+      <div class="field">
+        <label>YouTube Thumbnail Finder</label>
+        <div class="thumb-id-row">
+          <span class="thumb-id-label" id="yt-thumb-id-label">yt_urlからIDを検出します</span>
+          <button type="button" class="icon-btn" id="yt-thumb-search-btn" onclick="searchYoutubeThumbnail()">検索</button>
+        </div>
+        <div class="hint">高画質(maxres)から順に確認し、見つかった時点でそれより低画質の候補は表示しません。プレースホルダー画像(灰色/存在しない場合)は自動的に除外されます。</div>
+      </div>
+
+      <div id="yt-thumb-progress-wrap" style="display:none;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--muted);" id="yt-thumb-progress-label">検索中…</span>
+          <span style="font-size:11px;color:var(--muted);" id="yt-thumb-progress-count"></span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+          <div id="yt-thumb-progress-bar" style="height:100%;background:var(--accent);width:0%;transition:width .2s;"></div>
+        </div>
+      </div>
+
+      <div id="yt-thumb-results" style="display:none;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" id="yt-thumb-results-label"></div>
+        <div id="yt-thumb-results-grid" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="section">
+    <div class="section-hd">Status</div>
+    <div class="section-body">
+      <div class="field">
+        <label>ステータスを選択</label>
+        <div class="chips" id="status-chips">
+          <div class="chip" data-val="Found"           onclick="selectChip(this,'status-chips','statusVal');onStatusChange()">Found</div>
+          <div class="chip" data-val="Audio Only"      onclick="selectChip(this,'status-chips','statusVal');onStatusChange()">Audio Only</div>
+          <div class="chip" data-val="Partially Found" onclick="selectChip(this,'status-chips','statusVal');onStatusChange()">Partially Found</div>
+          <div class="chip" data-val="Lost"            onclick="selectChip(this,'status-chips','statusVal');onStatusChange()">Lost</div>
+        </div>
+        <input type="hidden" id="statusVal">
+      </div>
+      <div class="partial-sec" id="partial-sec">
+        <label>見つかっている時間(秒数)</label>
+        <input type="number" id="partial_seconds" min="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- IMAGE FILE + CAPTION -->
+  <div class="section">
+    <div class="section-hd">Image</div>
+    <div class="section-body">
+      <div class="field">
+        <label>Image File</label>
+        <div class="field-with-btn">
+          <input type="text" id="image_file" placeholder="曲名">
+          <button type="button" class="icon-btn" onclick="copyImageFileName(this)">コピー</button>
+        </div>
+        <div class="hint">Song Titleと同じ名前が自動入力されます。必要に応じて編集してください。(.jpgは自動付与)</div>
+      </div>
+      <div class="field">
+        <label>Caption</label>
+        <div class="chips" id="caption-chips">
+          <div class="chip" data-val="NND video thumbnail"    onclick="selectCaption(this)">Thumbnail</div>
+          <div class="chip" data-val="Vocarank screenshot"    onclick="selectCaption(this)">Vocarank</div>
+          <div class="chip" data-val="Screenshot from the PV" onclick="selectCaption(this)">PV Screenshot</div>
+          <div class="chip" data-val="No image available"     onclick="selectCaption(this)">No Image</div>
+        </div>
+        <input type="hidden" id="captionVal">
+      </div>
+
+      <!-- THUMBNAIL FINDER (NicoNico) -->
+      <div class="field">
+        <label>Thumbnail Finder (NicoNico)</label>
+        <div id="thumb-id-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <!-- progress bar -->
+      <div id="thumb-progress-wrap" style="display:none;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--muted);" id="thumb-progress-label">検索中…</span>
+          <span style="font-size:11px;color:var(--muted);" id="thumb-progress-count"></span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+          <div id="thumb-progress-bar" style="height:100%;background:var(--accent);width:0%;transition:width .2s;"></div>
+        </div>
+      </div>
+
+      <!-- results -->
+      <div id="thumb-results" style="display:none;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" id="thumb-results-label"></div>
+        <div id="thumb-results-grid" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- EXTERNAL LINKS -->
+  <div class="section">
+    <div class="section-hd">External Links</div>
+    <div class="section-body">
+      <div id="ext-link-list"></div>
+      <button type="button" class="add-btn" onclick="addExtLink()">+ リンクを追加</button>
+    </div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="out-toolbar">
+    <span class="out-label">生成されたテンプレート</span>
+    <button class="copy-btn" id="copyBtn" onclick="copyOutput()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      コピー
+    </button>
+    <button class="gen-btn" onclick="generate()">生成</button>
+  </div>
+  <div id="output">VocaDB URLを入力して「取得」を押すか、手動で入力して「生成」を押してください。</div>
+
+</div>
+
+<script>
+// ── ORDINAL ──
+function ordinal(n) {
+  if (n >= 11 && n <= 13) return 'th';
+  switch (n % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th'; }
+}
+function uploadLabel(i) { return `${i}${ordinal(i)} upload`; }
+
+// ── IMAGE FILE SYNC ──
+// Track whether user has manually edited image_file
+let imageManual = false;
+function syncImageFile() {
+  if (imageManual) return;
+  const title = document.getElementById('songtitle').value;
+  const captionVal = document.getElementById('captionVal').value;
+  document.getElementById('image_file').value =
+    captionVal === 'No image available' ? 'Song Default' : (title || '');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('image_file').addEventListener('input', () => { imageManual = true; });
+  document.getElementById('songtitle').addEventListener('input', () => {
+    if (!document.getElementById('image_file').value) imageManual = false;
+  });
+  document.getElementById('yt_url').addEventListener('input', updateYtThumbIdLabel);
+  updateYtThumbIdLabel();
+});
+
+// ── IMAGE FILE COPY ──
+function copyImageFileName(btn) {
+  const val = document.getElementById('image_file').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.classList.add('on');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('on'); }, 1200);
+  });
+}
+
+// ── PRODUCER HISTORY (localStorage) ──
+const HISTORY_MAX = 3;
+const HISTORY_KEYS = {
+  producer_ja:     'vocalost_history_producer_ja',
+  producer_roman:  'vocalost_history_producer_roman',
+};
+const HISTORY_LIST_IDS = {
+  producer_ja:     'producerJaHistoryList',
+  producer_roman:  'producerRomanHistoryList',
+};
+function loadHistory(field) {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEYS[field])) || []; }
+  catch (e) { return []; }
+}
+function saveHistoryEntry(field, value) {
+  value = (value || '').trim();
+  if (!value) return;
+  let hist = loadHistory(field);
+  hist = hist.filter(v => v !== value);
+  hist.unshift(value);
+  hist = hist.slice(0, HISTORY_MAX);
+  try { localStorage.setItem(HISTORY_KEYS[field], JSON.stringify(hist)); } catch (e) {}
+  renderHistoryList(field);
+}
+function renderHistoryList(field) {
+  const dl = document.getElementById(HISTORY_LIST_IDS[field]);
+  if (!dl) return;
+  dl.innerHTML = '';
+  loadHistory(field).forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v;
+    dl.appendChild(opt);
+  });
+}
+function initHistoryLists() {
+  Object.keys(HISTORY_KEYS).forEach(renderHistoryList);
+}
+
+// ── CAPTION SELECT ──
+function selectCaption(el) {
+  document.querySelectorAll('#caption-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('captionVal').value = el.dataset.val;
+  // No Image → override image_file to Song Default
+  if (!imageManual) {
+    const title = document.getElementById('songtitle').value;
+    document.getElementById('image_file').value =
+      el.dataset.val === 'No image available' ? 'Song Default' : (title || '');
+  }
+}
+
+// ── CHIP SELECT ──
+function selectChip(el, groupId, hiddenId) {
+  document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(hiddenId).value = el.dataset.val;
+}
+function onStatusChange() {
+  const val = document.getElementById('statusVal').value;
+  document.getElementById('partial-sec').classList.toggle('show', val === 'Partially Found');
+}
+
+// ── SONG TYPE (Original / Remaster / Cover, 排他) + Album(独立トグル) ──
+function selectSongType(el) {
+  document.querySelectorAll('#songtype-chips .chip').forEach(c => {
+    if (c.dataset.val !== 'Album') c.classList.remove('active');
+  });
+  el.classList.add('active');
+  document.getElementById('songTypeVal').value = el.dataset.val;
+
+  const remField = document.getElementById('remaster-title-field');
+  const isRemaster = el.dataset.val === 'Remaster';
+  remField.style.display = isRemaster ? 'flex' : 'none';
+  if (isRemaster) {
+    const jaInput = document.getElementById('remaster_original_title_ja');
+    const romanInput = document.getElementById('remaster_original_title_roman');
+    if (!jaInput.value) jaInput.value = document.getElementById('songtitle').value;
+    if (!romanInput.value) romanInput.value = document.getElementById('songtitle_roman').value;
+  }
+}
+function toggleAlbumChip(el) {
+  const isOn = el.classList.toggle('active');
+  document.getElementById('albumOnVal').value = isOn ? '1' : '0';
+  document.getElementById('album-name-field').style.display = isOn ? 'flex' : 'none';
+}
+
+// ── ILLUSTRATOR LIST ──
+function addIllustratorEntry(name = '', link = '') {
+  const list = document.getElementById('illustrator-list');
+  const div  = document.createElement('div');
+  div.className = 'illust-entry';
+  div.innerHTML = `
+    <div class="illust-fields">
+      <input type="text" class="illust-name" value="${name}" placeholder="名前">
+      <input type="text" class="illust-link" value="${link}" placeholder="リンク (https://...)">
+    </div>
+    <button type="button" class="del-btn" onclick="this.closest('.illust-entry').remove()">×</button>
+  `;
+  list.appendChild(div);
+}
+
+// ── VOCAL LIST ──
+function addVocalEntry(name = '') {
+  const list = document.getElementById('vocal-list');
+  const div  = document.createElement('div');
+  div.className = 'person-entry';
+  div.innerHTML = `
+    <input type="text" class="vocal-name" value="${name}" placeholder="ボーカル名">
+    <button type="button" class="del-btn" onclick="this.closest('.person-entry').remove()">×</button>
+  `;
+  list.appendChild(div);
+}
+
+// ── NICO UPLOAD DATA ──
+// nicoData: [{url, id}] — populated by fillFromVocaDB
+let nicoData = [];
+
+function extractNicoId(url) {
+  const m = url.match(/((?:sm|nm|so)\d+)/i);
+  return m ? m[1] : null;
+}
+
+// ── WAYBACK MACHINE LINK ──
+function waybackUrlForNicoId(smId) {
+  return `https://web.archive.org/web/20260000000000*/http://www.nicovideo.jp/watch/${smId}`;
+}
+
+// ── LYRICS BLOCKS ──
+function addLyricsBlock(lang = 'Japanese', value = '') {
+  const body = document.getElementById('lyrics-body');
+  const div  = document.createElement('div');
+  div.className = 'upload-block lyrics-block';
+  div.style.marginBottom = '10px';
+  div.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input type="text" class="lyrics-lang" value="${lang}" style="flex:1;margin:0;" placeholder="言語名 (例: Japanese)">
+      <button type="button" class="del-btn" onclick="this.closest('.lyrics-block').remove()">×</button>
+    </div>
+    <textarea class="lyrics-text" rows="8">${value}</textarea>
+  `;
+  body.appendChild(div);
+}
+
+// ── CORS PROXY FETCH ──
+async function fetchWithProxy(url) {
+  const proxies = [
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+  ];
+  let lastErr;
+  for (const proxy of proxies) {
+    try {
+      const res = await fetch(proxy(url));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+
+// ── FETCH NICO STATS FOR ONE BLOCK ──
+async function fetchNicoStats(smId, blockEl, btn) {
+  if (!smId) return;
+  btn.disabled = true;
+  btn.textContent = '取得中…';
+  btn.classList.remove('on');
+
+  // Stats from ext.nicovideo.jp
+  try {
+    const html = await fetchWithProxy(`https://ext.nicovideo.jp/thumb/${smId}`);
+    const viewsM    = html.match(/再生[：:]\s*<strong>([\d,]+)<\/strong>/);
+    const commentsM = html.match(/コメント[：:]\s*<strong>([\d,]+)<\/strong>/);
+    const mylistsM  = html.match(/マイリスト[：:]\s*<strong>([\d,]+)<\/strong>/);
+    if (viewsM)    blockEl.querySelector('.stat-views').value    = viewsM[1];
+    if (commentsM) blockEl.querySelector('.stat-comments').value = commentsM[1];
+    if (mylistsM)  blockEl.querySelector('.stat-mylists').value  = mylistsM[1];
+  } catch (e) { console.error('stats fetch error:', e); }
+
+  // Description from nicolog
+  try {
+    const html = await fetchWithProxy(`https://www.nicolog.jp/watch/${smId}`);
+    const doc  = new DOMParser().parseFromString(html, 'text/html');
+    let desc = '';
+    doc.querySelectorAll('dt').forEach(dt => {
+      if (dt.textContent.trim() === '動画説明') {
+        const dd = dt.nextElementSibling;
+        if (dd) {
+          dd.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+          desc = dd.textContent.trim();
+        }
+      }
+    });
+    if (desc) blockEl.querySelector('.desc-text').value = desc;
+  } catch (e) { console.error('desc fetch error:', e); }
+
+  btn.disabled = false;
+  btn.textContent = '✓ 完了';
+  btn.classList.add('on');
+  setTimeout(() => { btn.textContent = '再取得'; btn.classList.remove('on'); }, 2000);
+}
+
+function rebuildDynamicSections() {
+  const n     = Math.max(nicoData.length, 1);
+  const multi = n > 1;
+  const body  = document.getElementById('upload-data-body');
+
+  // Save current values before rebuild
+  const saved = [...document.querySelectorAll('.upload-data-block')].map(el => ({
+    views:    el.querySelector('.stat-views')?.value    || '',
+    comments: el.querySelector('.stat-comments')?.value || '',
+    mylists:  el.querySelector('.stat-mylists')?.value  || '',
+    desc:     el.querySelector('.desc-text')?.value     || '',
+  }));
+
+  body.innerHTML = '';
+
+  for (let i = 0; i < n; i++) {
+    const lbl  = multi ? uploadLabel(i + 1) : '';
+    const s    = saved[i] || {};
+    const url  = nicoData[i]?.url  || '';
+    const smId = nicoData[i]?.id   || '';
+
+    const div = document.createElement('div');
+    div.className = 'upload-block upload-data-block';
+
+    div.innerHTML = `
+      ${lbl ? `<div class="upload-block-title">${lbl}</div>` : ''}
+      <div class="nico-row">
+        ${url ? `<div class="nico-url-display">${url}</div>` : ''}
+        ${smId ? `<button type="button" class="icon-btn" onclick="copySmId('${smId}', this)">${smId}</button>` : ''}
+        ${smId ? `<button type="button" class="icon-btn fetch-stats-btn" onclick="fetchNicoStats('${smId}', this.closest('.upload-data-block'), this)">Stats取得</button>` : ''}
+        ${smId ? `<a class="icon-btn" style="text-decoration:none;display:inline-flex;" href="${waybackUrlForNicoId(smId)}" target="_blank" rel="noopener">Wayback</a>` : ''}
+      </div>
+      <div class="row2">
+        <div class="field"><label>Views</label><input type="text" class="stat-views"    value="${s.views    || ''}"></div>
+        <div class="field"><label>Comments</label><input type="text" class="stat-comments" value="${s.comments || ''}"></div>
+      </div>
+      <div class="field"><label>Mylists</label><input type="text" class="stat-mylists" value="${s.mylists  || ''}"></div>
+      <div class="field"><label>日本語説明文</label><textarea class="desc-text" rows="4">${s.desc || ''}</textarea></div>
+    `;
+    body.appendChild(div);
+  }
+  updateThumbIdList();
+}
+
+// ── THUMBNAIL ID LIST (synced with nicoData) ──
+function updateThumbIdList() {
+  const list = document.getElementById('thumb-id-list');
+  list.innerHTML = '';
+  // reset results
+  document.getElementById('thumb-results').style.display = 'none';
+  document.getElementById('thumb-progress-wrap').style.display = 'none';
+
+  const ids = nicoData.map(d => d.id).filter(Boolean);
+  if (!ids.length) return;
+
+  ids.forEach(smId => {
+    const row = document.createElement('div');
+    row.className = 'thumb-id-row';
+    row.innerHTML = `
+      <span class="thumb-id-label">${smId}</span>
+      <button type="button" class="icon-btn" onclick="searchThumbnails('${smId}', this)">Thumbnail</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ── THUMBNAIL SEARCH (NicoNico) ──
+const THUMB_PATTERNS = [
+  "http://tn-skr.smilevideo.jp/smile?i={id}",
+  "http://tn-skr.smilevideo.jp/smile?i={id}.L",
+  "http://tn-skr1.smilevideo.jp/smile?i={id}",
+  "http://tn-skr1.smilevideo.jp/smile?i={id}.L",
+  "http://tn-skr2.smilevideo.jp/smile?i={id}",
+  "http://tn-skr2.smilevideo.jp/smile?i={id}.L",
+  "http://tn-skr3.smilevideo.jp/smile?i={id}",
+  "http://tn-skr3.smilevideo.jp/smile?i={id}.L",
+  "http://tn-skr4.smilevideo.jp/smile?i={id}",
+  "http://tn-skr4.smilevideo.jp/smile?i={id}.L",
+  "https://tn.smilevideo.jp/smile?i={id}",
+  "https://nicovideo.cdn.nimg.jp/thumbnails/{id}/{id}",
+  "https://nicovideo.cdn.nimg.jp/thumbnails/{id}/{id}.L",
+];
+
+function searchThumbnails(smId, btn) {
+  // smId は "sm12345" 形式 → 数字部分だけ抽出
+  const numId = smId.replace(/^[a-z]+/i, '');
+
+  btn.disabled = true;
+  btn.textContent = '検索中…';
+
+  const progressWrap = document.getElementById('thumb-progress-wrap');
+  const progressBar  = document.getElementById('thumb-progress-bar');
+  const progressLabel = document.getElementById('thumb-progress-label');
+  const progressCount = document.getElementById('thumb-progress-count');
+  const resultsDiv   = document.getElementById('thumb-results');
+  const resultsLabel = document.getElementById('thumb-results-label');
+  const resultsGrid  = document.getElementById('thumb-results-grid');
+
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressLabel.textContent = `${smId} を検索中…`;
+  resultsDiv.style.display = 'none';
+  resultsGrid.innerHTML = '';
+
+  const total = THUMB_PATTERNS.length;
+  // cdn.nimg.jp 系は直リンクも別途チェックするので +2
+  const cdnPatterns = THUMB_PATTERNS.filter(p => p.includes('cdn.nimg.jp'));
+  const grandTotal = total + cdnPatterns.length;
+  let done = 0;
+  let found = 0;
+
+  // 同一画像とみなせるURLが多数あるため、
+  // 通常画質(非.L)・高画質(.L)それぞれ最初の1件だけ表示する
+  let foundNonL = false;
+  let foundHQ   = false;
+
+  function tick() {
+    done++;
+    const pct = Math.round((done / grandTotal) * 100);
+    progressBar.style.width = pct + '%';
+    progressCount.textContent = `${done} / ${grandTotal}`;
+    if (done >= grandTotal) {
+      progressLabel.textContent = '検索完了';
+      btn.disabled = false;
+      btn.textContent = '再検索';
+      btn.classList.add('on');
+      resultsDiv.style.display = 'block';
+      resultsLabel.textContent = found > 0
+        ? `${found} 件のサムネイルが見つかりました`
+        : 'サムネイルは見つかりませんでした';
+    }
+  }
+
+  function addThumbCard(imgSrc, linkHref, type) {
+    found++;
+    const card = document.createElement('div');
+    card.className = 'thumb-card';
+    const tagClass = type === 'live' ? 'thumb-tag-live' : 'thumb-tag-wb';
+    const tagText  = type === 'live' ? 'Direct Live' : 'Wayback Archive';
+    card.innerHTML = `
+      <div class="thumb-card-meta">
+        <span class="thumb-tag ${tagClass}">${tagText}</span>
+        <a href="${linkHref}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);word-break:break-all;">${linkHref}</a>
+      </div>
+      <img src="${imgSrc}" alt="thumbnail" loading="lazy">
+    `;
+    resultsGrid.appendChild(card);
+    resultsDiv.style.display = 'block';
+  }
+
+  function checkImg(src, onSuccess, onFail) {
+    const img = new Image();
+    img.onload  = () => onSuccess();
+    img.onerror = () => onFail();
+    img.src = src;
+  }
+
+  THUMB_PATTERNS.forEach(pattern => {
+    const isHQ    = pattern.includes('.L');
+    const rawUrl  = pattern.replace(/{id}/g, numId);
+    const wbImg   = `https://web.archive.org/web/0im_/${rawUrl}`;
+    const wbLink  = `https://web.archive.org/web/${rawUrl}`;
+
+    checkImg(wbImg,
+      () => {
+        const already = isHQ ? foundHQ : foundNonL;
+        if (!already) {
+          addThumbCard(wbImg, wbLink, 'wb');
+          if (isHQ) foundHQ = true; else foundNonL = true;
+        }
+        tick();
+      },
+      () => { tick(); }
+    );
+
+    // cdn.nimg.jp は直リンクも並行チェック
+    if (pattern.includes('cdn.nimg.jp')) {
+      checkImg(rawUrl,
+        () => {
+          const already = isHQ ? foundHQ : foundNonL;
+          if (!already) {
+            addThumbCard(rawUrl, rawUrl, 'live');
+            if (isHQ) foundHQ = true; else foundNonL = true;
+          }
+          tick();
+        },
+        () => { tick(); }
+      );
+    }
+  });
+}
+
+function copySmId(smId, btn) {
+  navigator.clipboard.writeText(smId).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ コピー';
+    btn.classList.add('on');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('on'); }, 1500);
+  });
+}
+
+// ── YOUTUBE THUMBNAIL FINDER ──
+// 画質層: 高画質から順にチェックし、最初に「プレースホルダーでない」画像が
+// 1件でも見つかった層で探索を打ち切る(それより低画質の層は表示しない)。
+const YT_THUMB_TIERS = [
+  { name: 'maxres',  labels: ['maxresdefault', 'maxres1', 'maxres2', 'maxres3'] },
+  { name: 'sd',      labels: ['sddefault', 'sd1', 'sd2', 'sd3'] },
+  { name: 'hq',      labels: ['hqdefault', 'hq1', 'hq2', 'hq3'] },
+  { name: 'mq',      labels: ['mqdefault', 'mq1', 'mq2', 'mq3'] },
+  { name: 'default', labels: ['default', '1', '2', '3'] },
+];
+
+function extractYoutubeId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:v=|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{6,})/);
+  return m ? m[1] : null;
+}
+
+function updateYtThumbIdLabel() {
+  const url = document.getElementById('yt_url').value.trim();
+  const id  = extractYoutubeId(url);
+  const label = document.getElementById('yt-thumb-id-label');
+  label.textContent = id ? id : 'yt_urlからIDを検出します';
+}
+
+// 画像を読み込み、YouTubeがプレースホルダー(存在しない動画/画質に対して返す
+// 120×90前後の灰色画像)を返していないかを判定する。
+function checkYoutubeThumbCandidate(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false });
+    }, 8000);
+
+    img.onload = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const isPlaceholder = img.naturalWidth <= 120 && img.naturalHeight <= 90;
+      resolve({ ok: !isPlaceholder, width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok: false });
+    };
+    img.referrerPolicy = 'no-referrer';
+    img.src = url;
+  });
+}
+
+async function searchYoutubeThumbnail() {
+  updateYtThumbIdLabel();
+  const ytUrl = document.getElementById('yt_url').value.trim();
+  const id = extractYoutubeId(ytUrl);
+
+  const btn           = document.getElementById('yt-thumb-search-btn');
+  const progressWrap  = document.getElementById('yt-thumb-progress-wrap');
+  const progressBar   = document.getElementById('yt-thumb-progress-bar');
+  const progressLabel = document.getElementById('yt-thumb-progress-label');
+  const progressCount = document.getElementById('yt-thumb-progress-count');
+  const resultsDiv    = document.getElementById('yt-thumb-results');
+  const resultsLabel  = document.getElementById('yt-thumb-results-label');
+  const resultsGrid   = document.getElementById('yt-thumb-results-grid');
+
+  resultsDiv.style.display = 'none';
+  resultsGrid.innerHTML = '';
+
+  if (!id) {
+    progressWrap.style.display = 'none';
+    resultsDiv.style.display = 'block';
+    resultsLabel.textContent = 'YouTube URLからIDを読み取れません。Video欄のYouTube URLを確認してください。';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '検索中…';
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressCount.textContent = '';
+
+  const grandTotal = YT_THUMB_TIERS.reduce((sum, t) => sum + t.labels.length, 0);
+  let checked = 0;
+  let foundTier = null;
+  let foundResults = [];
+
+  for (const tier of YT_THUMB_TIERS) {
+    progressLabel.textContent = `${tier.name} を確認中…`;
+
+    const candidates = tier.labels.map(label => ({
+      label,
+      url: `https://img.youtube.com/vi/${id}/${label}.jpg`,
+    }));
+
+    const checks = await Promise.all(candidates.map(c =>
+      checkYoutubeThumbCandidate(c.url).then(r => ({ ...r, label: c.label, url: c.url }))
+    ));
+
+    checked += candidates.length;
+    progressBar.style.width = Math.round((checked / grandTotal) * 100) + '%';
+    progressCount.textContent = `${checked} / ${grandTotal}`;
+
+    const valid = checks.filter(c => c.ok);
+    if (valid.length) {
+      foundTier = tier.name;
+      foundResults = valid;
+      break; // より低画質の層は確認しない
+    }
+  }
+
+  progressLabel.textContent = '検索完了';
+  btn.disabled = false;
+  btn.textContent = '再検索';
+
+  resultsDiv.style.display = 'block';
+  if (foundResults.length) {
+    resultsLabel.textContent = `最高画質層「${foundTier}」で ${foundResults.length} 件見つかりました`;
+    foundResults.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'thumb-card';
+      card.innerHTML = `
+        <div class="thumb-card-meta">
+          <span class="thumb-tag thumb-tag-yt">${r.label}${r.width ? ` (${r.width}×${r.height})` : ''}</span>
+          <a href="${r.url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);word-break:break-all;">${r.url}</a>
+        </div>
+        <img src="${r.url}" alt="thumbnail" loading="lazy">
+      `;
+      resultsGrid.appendChild(card);
+    });
+  } else {
+    resultsLabel.textContent = '有効なサムネイルは見つかりませんでした(すべてプレースホルダーまたは取得エラー)。';
+  }
+}
+
+// ── EXTERNAL LINKS ──
+function addExtLink(data = {}) {
+  const list = document.getElementById('ext-link-list');
+  const div  = document.createElement('div');
+  div.className = 'ext-entry';
+  div.innerHTML = `
+    <div class="field"><label>URL</label><input type="text" class="ext-url" value="${data.url || ''}"></div>
+    <div class="field"><label>リンク名</label><input type="text" class="ext-name" value="${data.name || ''}"></div>
+    <div class="ext-btn-row">
+      <button type="button" class="icon-btn upload-btn${data.isUpload ? ' on' : ''}" onclick="this.classList.toggle('on')">Upload</button>
+      <button type="button" class="icon-btn broken-btn" onclick="this.classList.toggle('on')">Broken</button>
+      <button type="button" class="del-btn" onclick="this.closest('.ext-entry').remove()">削除</button>
+    </div>
+  `;
+  list.appendChild(div);
+}
+
+// ── PV SERVICE NAME MAPPING ──
+const SERVICE_DISPLAY_NAMES = {
+  Youtube: 'YouTube',
+  NicoNicoDouga: 'NicoNico',
+  SoundCloud: 'SoundCloud',
+  Piapro: 'Piapro',
+  Bilibili: 'Bilibili',
+  Vimeo: 'Vimeo',
+  Bandcamp: 'Bandcamp',
+  Creofuga: 'Creofuga',
+  File: 'File',
+};
+function serviceDisplayName(service) {
+  return SERVICE_DISPLAY_NAMES[service] || service;
+}
+
+// ── VOCADB API ──
+async function fetchVocaDB() {
+  const raw = document.getElementById('vocadbUrl').value.trim();
+  if (!raw) return;
+  let songId = null;
+  const m = raw.match(/\/S\/(\d+)/);
+  if (m) songId = m[1];
+  else if (/^\d+$/.test(raw)) songId = raw;
+  if (!songId) { setStatus('URLからIDを読み取れません', 'err'); return; }
+
+  setStatus('取得中…', 'loading');
+  document.querySelector('.fetch-btn').disabled = true;
+  try {
+    const res  = await fetch(`https://vocadb.net/api/songs/${songId}?fields=Artists,PVs,Lyrics,WebLinks`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // ローマ字表記のVocal名を取得するための追加フェッチ
+    let dataRomaji = null;
+    try {
+      const resR = await fetch(`https://vocadb.net/api/songs/${songId}?fields=Artists&lang=Romaji`);
+      if (resR.ok) dataRomaji = await resR.json();
+    } catch (e) { console.error('romaji fetch error:', e); }
+
+    fillFromVocaDB(data, dataRomaji);
+    setStatus('✓ 取得完了', 'ok');
+  } catch (e) {
+    setStatus('取得失敗: ' + e.message, 'err');
+  } finally {
+    document.querySelector('.fetch-btn').disabled = false;
+  }
+}
+function setStatus(msg, cls) {
+  const el = document.getElementById('fetchStatus');
+  el.textContent = msg; el.className = cls;
+}
+
+function fillFromVocaDB(data, dataRomaji) {
+  const title = data.name || '';
+  document.getElementById('songtitle').value = title;
+  imageManual = false;
+  const captionVal = document.getElementById('captionVal').value;
+  document.getElementById('image_file').value =
+    captionVal === 'No image available' ? 'Song Default' : (title || '');
+
+  // ── PV分類:公式(Original) / 転載(Reprint) ──
+  const pvs = data.pvs || [];
+
+  // 転載(Reprint)のうちYouTubeのみをVideo欄へ。それ以外の転載は切り捨て
+  const reprintYoutube = pvs
+    .filter(p => p.pvType === 'Reprint' && p.service === 'Youtube');
+  document.getElementById('yt_url').value = reprintYoutube[0]?.url || '';
+  updateYtThumbIdLabel();
+
+  // 公式(Original)のNicoNicoは従来通りInfo/Statsへ
+  const nndPvs = pvs
+    .filter(p => p.pvType === 'Original' && p.service === 'NicoNicoDouga')
+    .sort((a, b) => {
+      const getId = u => { const mm = u.match(/(?:sm|nm|so)(\d+)/i); return mm ? parseInt(mm[1]) : Number.MAX_SAFE_INTEGER; };
+      return getId(a.url) - getId(b.url);
+    });
+
+  document.getElementById('videotitle').value = nndPvs[0]?.name || title;
+
+  nicoData = nndPvs.length
+    ? nndPvs.map(pv => ({ url: pv.url, id: extractNicoId(pv.url) }))
+    : [{ url: '', id: '' }];
+
+  rebuildDynamicSections();
+
+  // 公式(Original)のニコニコ以外(YouTube公式アップロード、SoundCloud、Piaproなど)
+  // → External Linksへ、Uploadボタンを自動でON
+  document.getElementById('ext-link-list').innerHTML = '';
+  const officialOther = pvs.filter(p => p.pvType === 'Original' && p.service !== 'NicoNicoDouga');
+  officialOther.forEach(p => {
+    addExtLink({ url: p.url, name: serviceDisplayName(p.service), isUpload: true });
+  });
+
+  // Duration / Date
+  if (data.lengthSeconds > 0) {
+    const mm = Math.floor(data.lengthSeconds / 60);
+    const ss = String(data.lengthSeconds % 60).padStart(2, '0');
+    document.getElementById('duration').value = `${mm}:${ss}`;
+  }
+  if (data.publishDate) document.getElementById('date').value = formatDate(data.publishDate);
+
+  // Producer (single)
+  const producers = (data.artists || []).filter(a => a.categories === 'Producer');
+  if (producers.length) document.getElementById('producer_ja').value = producers[0].name || '';
+
+  // Illustrators — name + artist page link
+  document.getElementById('illustrator-list').innerHTML = '';
+  const illustrators = (data.artists || []).filter(a => a.categories === 'Illustrator');
+  illustrators.forEach(il => {
+    const artistId = il.artist?.id;
+    const link = artistId ? `https://vocadb.net/Ar/${artistId}` : '';
+    addIllustratorEntry(il.name || '', link);
+  });
+
+  // Vocals — one entry per person, ローマ字表記を優先して使用
+  document.getElementById('vocal-list').innerHTML = '';
+  const vocals = (data.artists || []).filter(a => a.categories === 'Vocalist');
+  const vocalsRomaji = (dataRomaji?.artists || []).filter(a => a.categories === 'Vocalist');
+  if (vocals.length) {
+    vocals.forEach((vc, i) => {
+      // artist.id が一致するローマ字表記を探す。見つからなければ同じ並び順で対応、
+      // それでもなければ元の(日本語)名にフォールバック
+      let romajiName = null;
+      const vcArtistId = vc.artist?.id;
+      if (vcArtistId != null) {
+        const match = vocalsRomaji.find(r => r.artist?.id === vcArtistId);
+        if (match) romajiName = match.name;
+      }
+      if (!romajiName && vocalsRomaji[i]) romajiName = vocalsRomaji[i].name;
+      addVocalEntry(romajiName || vc.name || '');
+    });
+  } else {
+    addVocalEntry();
+  }
+
+  // Lyrics — all languages, build dynamic blocks
+  const lyricsBody = document.getElementById('lyrics-body');
+  lyricsBody.innerHTML = '';
+
+  // cultureCode → English language name (未指定/日本語は常にJapanese)
+  const langName = code => {
+    const map = {
+      'ja': 'Japanese', 'en': 'English', 'zh': 'Chinese', 'ko': 'Korean',
+      'fr': 'French', 'de': 'German', 'es': 'Spanish', 'it': 'Italian',
+      'ru': 'Russian', 'pt': 'Portuguese',
+    };
+    if (!code) return 'Japanese';
+    const base = code.split('-')[0].toLowerCase();
+    return map[base] || code;
+  };
+
+  const allLyrics = data.lyrics || [];
+  if (allLyrics.length) {
+    const sorted = [
+      ...allLyrics.filter(l => l.cultureCode === 'ja' || langName(l.cultureCode) === 'Japanese'),
+      ...allLyrics.filter(l => l.cultureCode !== 'ja' && langName(l.cultureCode) !== 'Japanese'),
+    ];
+    sorted.forEach(l => addLyricsBlock(langName(l.cultureCode), l.value || ''));
+  } else {
+    addLyricsBlock('Japanese', '');
+  }
+
+  // WebLinks — category === 'Official' のもののみexternal linksに追加(公式PVの後ろに追加)
+  const officialLinks = (data.webLinks || []).filter(l => l.category === 'Official');
+  officialLinks.forEach(l => addExtLink({ url: l.url, name: l.description || '' }));
+}
+
+// ── DATE FORMATTER ──
+function formatDate(iso) {
+  const d = new Date(iso);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = d.getUTCDate();
+  return `${months[d.getUTCMonth()]} ${day}${ordinal(day)} ${d.getUTCFullYear()}`;
+}
+
+// ── LYRICS FORMATTER ──
+function formatLyrics(raw) {
+  const lines = raw.split('\n');
+  return lines.map((line, i) => {
+    if (i === lines.length - 1) return line;
+    return line === '' ? '<br>' : line + '<br>';
+  }).join('\n');
+}
+
+// ── STATUS ──
+function statusLine(status, seconds) {
+  switch (status) {
+    case 'Found':           return `{{Found}}\nThe full song and PV are available.`;
+    case 'Audio Only':      return `{{Audio Only}}\nThe full audio is found.`;
+    case 'Partially Found': {
+      const s = seconds ? parseInt(seconds) : null;
+      return `{{Partially Found}}\n${s ? formatSeconds(s) : '??? seconds'} of the song and PV are available.`;
+    }
+    case 'Lost': return `{{Lost}}\nThis song is completely lost.`;
+    default:     return '';
+  }
+}
+function formatSeconds(s) {
+  if (s < 60) return `${s} second${s !== 1 ? 's' : ''}`;
+  const m = Math.floor(s / 60), rem = s % 60;
+  if (rem === 0) return `${m} minute${m !== 1 ? 's' : ''}`;
+  return `${m} minute${m !== 1 ? 's' : ''} and ${rem} second${rem !== 1 ? 's' : ''}`;
+}
+function statusCategories(status) {
+  switch (status) {
+    case 'Found':           return ['Found', 'Fully Found'];
+    case 'Audio Only':      return ['Found', 'Audio Only'];
+    case 'Partially Found': return ['Lost', 'Partially Found'];
+    case 'Lost':            return ['Lost', 'Fully Lost'];
+    default:                return [];
+  }
+}
+
+// ── VOCAL SENTENCE ──
+function vocalSentence(vocals) {
+  if (vocals.length === 0) return '';
+  if (vocals.length === 1) return vocals[0];
+  if (vocals.length === 2) return `${vocals[0]} and ${vocals[1]}`;
+  return `${vocals.slice(0, -1).join(', ')} and ${vocals[vocals.length - 1]}`;
+}
+
+// ── GENERATE ──
+function fv(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+function generate() {
+  const songtitle   = fv('songtitle');
+  const songtitle_r = fv('songtitle_roman');
+  const videotitle  = fv('videotitle');
+  const captionVal  = fv('captionVal');
+  const image_raw   = fv('image_file');
+  const image_file  = image_raw ? image_raw + '.jpg' : (songtitle ? songtitle + '.jpg' : '');
+  const producer_ja = fv('producer_ja');
+  const producer_r  = fv('producer_roman');
+  const duration    = fv('duration');
+  const date        = fv('date');
+  const statusVal   = fv('statusVal');
+  const partial_sec = fv('partial_seconds');
+  const yt_url      = fv('yt_url');
+  const tabnameVal  = fv('tabnameVal') || 'Reprint';
+  const lyrics_raw  = fv('lyrics_ja');
+  const vocadbUrl   = fv('vocadbUrl');
+  const songTypeVal = fv('songTypeVal') || 'Original';
+  const albumOn     = fv('albumOnVal') === '1';
+  const remasterJa     = fv('remaster_original_title_ja');
+  const remasterRoman  = fv('remaster_original_title_roman');
+  const albumJa        = fv('album_name_ja');
+  const albumRoman     = fv('album_name_roman');
+
+  const combineLabel = (ja, roman) => ja && roman ? `${ja} (${roman})` : ja || roman;
+  const remasterLabel = combineLabel(remasterJa, remasterRoman);
+  const albumLabel    = combineLabel(albumJa, albumRoman);
+
+  // Producer履歴に保存
+  saveHistoryEntry('producer_ja', producer_ja);
+  saveHistoryEntry('producer_roman', producer_r);
+
+  const pLabel = producer_ja && producer_r
+    ? `${producer_ja} (${producer_r})`
+    : producer_ja || producer_r;
+
+  // Illustrators
+  const illustrators = [...document.querySelectorAll('#illustrator-list .illust-entry')].map(el => ({
+    name: el.querySelector('.illust-name')?.value.trim() || '',
+    link: el.querySelector('.illust-link')?.value.trim() || '',
+  })).filter(il => il.name);
+
+  // Vocals
+  const vocals = [...document.querySelectorAll('#vocal-list .vocal-name')]
+    .map(el => el.value.trim()).filter(Boolean);
+
+  // Upload data blocks
+  const uploadBlocks = [...document.querySelectorAll('.upload-data-block')].map(el => ({
+    views:    el.querySelector('.stat-views')?.value.trim()    || '',
+    comments: el.querySelector('.stat-comments')?.value.trim() || '',
+    mylists:  el.querySelector('.stat-mylists')?.value.trim()  || '',
+    desc:     el.querySelector('.desc-text')?.value.trim()     || '',
+  }));
+
+  // NicoNico URLs from nicoData (sorted already)
+  const nicoUrls = nicoData.map(d => d.url).filter(Boolean);
+
+  // External links — split into upload-type and regular
+  const extEntries = [...document.querySelectorAll('.ext-entry')].map(el => ({
+    name:     el.querySelector('.ext-name').value.trim(),
+    url:      el.querySelector('.ext-url').value.trim(),
+    broken:   el.querySelector('.broken-btn').classList.contains('on'),
+    isUpload: el.querySelector('.upload-btn').classList.contains('on'),
+  })).filter(e => e.name && e.url);
+
+  const extUploads  = extEntries.filter(e => e.isUpload);
+  const extRegular  = extEntries.filter(e => !e.isUpload);
+
+  // multiはnicoDataの数のみで判定(ext uploadはカウントしない)
+  const multi = nicoData.filter(d => d.url).length > 1;
+
+  const yearMatch = date.match(/\d{4}$/);
+  const year = yearMatch ? yearMatch[0] : '';
+
+  let ytId = '';
+  if (yt_url) {
+    const m = yt_url.match(/(?:v=|youtu\.be\/)([^&?]+)/);
+    if (m) ytId = m[1];
+  }
+
+  let out = '';
+
+  // Build full upload list for |upload = 
+  const allUploadLinks = [
+    ...nicoUrls.map(u => `<s>[${u} NicoNico]</s>`),
+    ...extUploads.map(e => {
+      const tag = `[${e.url} ${e.name}]`;
+      return e.broken ? `<s>${tag}</s>` : tag;
+    }),
+  ];
+
+  // ── INFOBOX ──
+  out += `{{infobox song\n`;
+  if (videotitle)          out += `|videotitle = ${videotitle}\n`;
+  if (image_file)          out += `|image = [[File:${image_file}|200px]]\n`;
+  if (captionVal)          out += `|caption = ${captionVal}\n`;
+  if (songtitle)           out += `|songtitle = ${songtitle}\n`;
+  if (pLabel)              out += `|producer = [[${pLabel}]]\n`;
+  if (illustrators.length) {
+    const ilStr = illustrators.map(il => il.link ? `[${il.link} ${il.name}]` : il.name).join('<br>');
+    out += `|illustrator = ${ilStr}\n`;
+  }
+  if (vocals.length)       out += `|vocal = ${vocals.join('<br>')}\n`;
+  if (duration)            out += `|duration = ${duration}\n`;
+  if (date)                out += `|date = ${date}\n`;
+  if (allUploadLinks.length) out += `|upload = ${allUploadLinks.join('<br>')}\n`;
+  out += `}}\n\n`;
+
+  // ── ALBUM (Original等の他ボタンと併用可能。説明文の前に追加) ──
+  if (albumOn && albumLabel) {
+    out += `'''<big>This song is featured on the album [[${albumLabel}]].</big>'''\n\n`;
+  }
+
+  // ── INTRO ──
+  if (songtitle) {
+    const titlePart = songtitle_r
+      ? `'''${songtitle}''' (${songtitle_r})`
+      : `'''${songtitle}'''`;
+    if (songTypeVal === 'Remaster') {
+      const remTitle = remasterLabel || songtitle;
+      out += `${titlePart} is a remaster of [[${remTitle}]] by producer [[${pLabel}]] using ${vocalSentence(vocals)}.\n\n`;
+    } else if (songTypeVal === 'Cover') {
+      out += `${titlePart} is an cover by producer [[${pLabel}]], using ${vocalSentence(vocals)}.\n\n`;
+    } else {
+      // Original (default)
+      const producerPart = pLabel ? ` by producer [[${pLabel}]]` : '';
+      const vocalPart    = vocals.length ? ` using ${vocalSentence(vocals)}` : '';
+      out += `${titlePart} is an original song${producerPart}${vocalPart}.\n\n`;
+    }
+  }
+
+  // ── STATUS ──
+  if (statusVal) out += `= Status =\n${statusLine(statusVal, partial_sec)}\n\n`;
+
+  // ── INFO / STATS ──
+  if (uploadBlocks.some(b => b.views || b.comments || b.mylists)) {
+    out += `= Info =\n`;
+    uploadBlocks.forEach((b, i) => {
+      if (!b.views && !b.comments && !b.mylists) return;
+      if (multi) out += `=== ${uploadLabel(i + 1)} ===\n`;
+      out += `{{Stats\n`;
+      if (b.views)    out += `|views = ${b.views}\n`;
+      if (b.comments) out += `|comments = ${b.comments}\n`;
+      if (b.mylists)  out += `|mylists = ${b.mylists}\n`;
+      out += `}}\n`;
+    });
+    out += `\n`;
+  }
+
+  // ── DESCRIPTION ──
+  if (uploadBlocks.some(b => b.desc)) {
+    out += `= Description =\n`;
+    uploadBlocks.forEach((b, i) => {
+      if (!b.desc) return;
+      if (multi) out += `=== ${uploadLabel(i + 1)} ===\n`;
+      out += `== Japanese ==\n${b.desc}\n`;
+    });
+    out += `\n`;
+  }
+
+  // ── VIDEO ──
+  if (ytId) {
+    out += `= Video =\n<tabs style="width:640px">\n<tab name="${tabnameVal}">\n<youtube width="640">${ytId}</youtube>\n</tab>\n</tabs>\n\n`;
+  }
+
+  // ── LYRICS ──
+  const lyricsBlocks = [...document.querySelectorAll('.lyrics-block')].map(el => ({
+    lang:  el.querySelector('.lyrics-lang')?.value.trim()  || 'Japanese',
+    text:  el.querySelector('.lyrics-text')?.value.trim()  || '',
+  })).filter(b => b.text);
+  // 旧来の単一textarea (lyrics_ja) も拾う
+  const legacyLyrics = document.getElementById('lyrics_ja')?.value.trim();
+  if (lyricsBlocks.length) {
+    out += `= Lyrics =\n`;
+    lyricsBlocks.forEach(b => {
+      out += `{{Template:Lyrics\n|title = ${b.lang}\n|lyrics = ${formatLyrics(b.text)}\n}}\n\n`;
+    });
+  } else if (legacyLyrics) {
+    out += `= Lyrics =\n{{Template:Lyrics\n|title = Japanese\n|lyrics = ${formatLyrics(legacyLyrics)}\n}}\n\n`;
+  }
+
+  // ── EXTERNAL LINKS ──
+  const extLines = extRegular.map(e => {
+    const tag = `[${e.url} ${e.name}]`;
+    return (e.broken ? `<s>${tag}</s>` : tag) + '<br>';
+  });
+  if (vocadbUrl) extLines.push(`[${vocadbUrl} VocaDB]`);
+  if (extLines.length) out += `= External Links =\n${extLines.join('\n')}\n\n`;
+
+  // ── CATEGORIES ──
+  const cats = ['Songs', ...statusCategories(statusVal)];
+  if (year) cats.push(year);
+  vocals.forEach(vc => cats.push(vc));
+  if (pLabel) cats.push(pLabel);
+  out += cats.map(c => `[[Category:${c}]]`).join('\n');
+
+  document.getElementById('output').textContent = out;
+}
+
+// ── COPY ──
+function copyOutput() {
+  navigator.clipboard.writeText(document.getElementById('output').textContent).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> コピー完了`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> コピー`;
+    }, 2000);
+  });
+}
+
+// ── INIT ──
+nicoData = [{ url: '', id: '' }];
+addVocalEntry();
+addLyricsBlock('Japanese', '');
+rebuildDynamicSections();
+initHistoryLists();
+
+// ── ENTER KEY → NEXT FIELD (like Tab on mobile) ──
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const tag = document.activeElement.tagName;
+  if (tag === 'TEXTAREA' || tag === 'BUTTON') return;
+  e.preventDefault();
+  const focusable = [...document.querySelectorAll(
+    'input[type=text], input[type=number], textarea'
+  )].filter(el => !el.disabled && el.offsetParent !== null);
+  const idx = focusable.indexOf(document.activeElement);
+  if (idx !== -1 && idx + 1 < focusable.length) {
+    focusable[idx + 1].focus();
+  }
+});
+</script>
+</body>
+</html>
